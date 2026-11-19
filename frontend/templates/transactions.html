@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+
+{% block title %}Transactions | SpendSmart{% endblock %}
+{% block page_title %}Transactions Ledger{% endblock %}
+{% block page_subtitle %}Filter, review, and manage all your historical cash inflows and outflows{% endblock %}
+
+{% block content %}
+
+<!-- Summary Pill Bar for Filtered Results -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="p-3 bg-white rounded-3 border shadow-sm">
+      <small class="text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Total Matches</small>
+      <h4 class="fw-bold mb-0 text-dark tabular-nums">{{ total_count }}</h4>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="p-3 bg-white rounded-3 border shadow-sm">
+      <small class="text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Filtered Inflow</small>
+      <h4 class="fw-bold mb-0 text-success tabular-nums">+₹{{ filtered_income|inr }}</h4>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="p-3 bg-white rounded-3 border shadow-sm">
+      <small class="text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Filtered Outflow</small>
+      <h4 class="fw-bold mb-0 text-danger tabular-nums">-₹{{ filtered_expense|inr }}</h4>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="p-3 bg-white rounded-3 border shadow-sm">
+      <small class="text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Net Balance</small>
+      <h4 class="fw-bold mb-0 tabular-nums {{ 'text-success' if filtered_net >= 0 else 'text-danger' }}">
+        {{ filtered_net|currency }}
+      </h4>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================
+     FILTERS & ACTIONS TOOLBAR
+     ========================================== -->
+<div class="card-finance mb-4">
+  <div class="card-body">
+    <form method="GET" action="{{ url_for('transactions') }}" class="row g-2 align-items-end">
+      <!-- Search Input -->
+      <div class="col-12 col-md-3">
+        <label class="form-label small fw-bold text-muted text-uppercase">Search</label>
+        <div class="input-group">
+          <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+          <input type="text" name="q" class="form-control border-start-0" placeholder="Search by title..." value="{{ filter_q }}">
+        </div>
+      </div>
+
+      <!-- Type Filter -->
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-bold text-muted text-uppercase">Type</label>
+        <select name="type" class="form-select">
+          <option value="">All Types</option>
+          <option value="Income" {% if filter_type == 'Income' %}selected{% endif %}>Income</option>
+          <option value="Expense" {% if filter_type == 'Expense' %}selected{% endif %}>Expense</option>
+        </select>
+      </div>
+
+      <!-- Category Filter -->
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-bold text-muted text-uppercase">Category</label>
+        <select name="category" class="form-select">
+          <option value="">All Categories</option>
+          <optgroup label="Expenses">
+            {% for cat in expense_categories %}
+              <option value="{{ cat }}" {% if filter_cat == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </optgroup>
+          <optgroup label="Income">
+            {% for cat in income_categories %}
+              <option value="{{ cat }}" {% if filter_cat == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </optgroup>
+        </select>
+      </div>
+
+      <!-- Start Date -->
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-bold text-muted text-uppercase">From</label>
+        <input type="date" name="start_date" class="form-control" value="{{ filter_start_date }}">
+      </div>
+
+      <!-- End Date -->
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-bold text-muted text-uppercase">To</label>
+        <input type="date" name="end_date" class="form-control" value="{{ filter_end_date }}">
+      </div>
+
+      <!-- Submit & Reset Buttons -->
+      <div class="col-12 col-md-1 d-flex gap-1">
+        <button type="submit" class="btn btn-navy w-100" title="Apply Filter">
+          <i class="bi bi-funnel-fill"></i>
+        </button>
+        {% if filter_q or filter_type or filter_cat or filter_start_date or filter_end_date %}
+          <a href="{{ url_for('transactions') }}" class="btn btn-outline-danger" title="Clear Filters">
+            <i class="bi bi-x-circle"></i>
+          </a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==========================================
+     TRANSACTIONS LIST TABLE
+     ========================================== -->
+<div class="card-finance">
+  <div class="card-header">
+    <div class="d-flex align-items-center gap-2">
+      <h5 class="m-0 fw-bold fs-6">Transactions Records</h5>
+      <span class="badge bg-light text-muted border">{{ transactions|length }} items</span>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('export_csv') }}" class="btn btn-outline-custom btn-sm">
+        <i class="bi bi-download me-1"></i> Export CSV
+      </a>
+      <button class="btn btn-primary-smart btn-sm" data-bs-toggle="modal" data-bs-target="#addTransactionModal">
+        <i class="bi bi-plus-lg me-1"></i> Add Transaction
+      </button>
+    </div>
+  </div>
+
+  <div class="card-body p-0">
+    {% if transactions %}
+      <div class="table-responsive">
+        <table class="table table-custom align-middle mb-0">
+          <thead>
+            <tr>
+              <th style="width: 140px;">Date</th>
+              <th>Title & Description</th>
+              <th style="width: 160px;">Category</th>
+              <th style="width: 110px;">Type</th>
+              <th class="text-end" style="width: 140px;">Amount</th>
+              <th class="text-center" style="width: 80px;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in transactions %}
+              <tr>
+                <td>
+                  <span class="fw-semibold text-dark">{{ t.date.strftime('%d %b %Y') }}</span>
+                  <div class="text-muted" style="font-size: 0.74rem;">{{ t.date.strftime('%A') }}</div>
+                </td>
+                <td>
+                  <div class="fw-bold text-dark">{{ t.title }}</div>
+                  {% if t.description %}
+                    <small class="text-muted">{{ t.description }}</small>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="category-badge">
+                    <i class="bi {{ category_icons.get(t.category, 'bi-tag-fill') }}" style="color: {{ category_colors.get(t.category, '#64748b') }}"></i>
+                    {{ t.category }}
+                  </span>
+                </td>
+                <td>
+                  <span class="{{ 'badge-income' if t.transaction_type == 'Income' else 'badge-expense' }}">
+                    <i class="bi {{ 'bi-arrow-down-left' if t.transaction_type == 'Income' else 'bi-arrow-up-right' }}"></i>
+                    {{ t.transaction_type }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <span class="fs-6 tabular-nums {{ 'amount-income' if t.transaction_type == 'Income' else 'amount-expense' }}">
+                    {{ '+' if t.transaction_type == 'Income' else '-' }}₹{{ t.amount|inr }}
+                  </span>
+                </td>
+                <td class="text-center">
+                  <form action="{{ url_for('delete_transaction', id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirmDelete('{{ t.title }}');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Transaction">
+                      <i class="bi bi-trash3-fill"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% elif db_total_count == 0 %}
+      <!-- Empty State: Zero Transactions in Database -->
+      <div class="empty-state-box py-5">
+        <div class="empty-state-icon">
+          <i class="bi bi-receipt"></i>
+        </div>
+        <h5 class="empty-state-title">Your transaction ledger is empty</h5>
+        <p class="empty-state-desc">You haven't recorded any income or expenses yet. Record your first transaction to start tracking your finances.</p>
+        <button class="btn btn-primary-smart" data-bs-toggle="modal" data-bs-target="#addTransactionModal">
+          <i class="bi bi-plus-circle-fill me-1"></i> Add Transaction
+        </button>
+      </div>
+    {% else %}
+      <!-- Empty State: Filters Returned 0 Results -->
+      <div class="empty-state-box py-5">
+        <div class="empty-state-icon">
+          <i class="bi bi-funnel"></i>
+        </div>
+        <h5 class="empty-state-title">No transactions match your filters</h5>
+        <p class="empty-state-desc">Try clearing your search query or adjusting your date range.</p>
+        <a href="{{ url_for('transactions') }}" class="btn btn-outline-custom">
+          <i class="bi bi-arrow-counterclockwise me-1"></i> Reset All Filters
+        </a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
