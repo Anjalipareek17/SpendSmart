@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+
+{% block title %}Monthly Budgets | SpendSmart{% endblock %}
+{% block page_title %}Monthly Budgets & Limits{% endblock %}
+{% block page_subtitle %}Set spending thresholds, monitor category usage, and receive automated 80% & 100% alerts{% endblock %}
+
+{% block content %}
+
+<!-- Month & Year Filter Selector -->
+<div class="card-finance mb-4">
+  <div class="card-body py-3">
+    <form method="GET" action="{{ url_for('budgets') }}" class="row g-2 align-items-center">
+      <div class="col-auto">
+        <label class="small fw-bold text-muted text-uppercase mb-0 me-2">
+          <i class="bi bi-calendar3 me-1 text-primary"></i> Budget Period:
+        </label>
+      </div>
+      <div class="col-auto">
+        <select name="month" class="form-select form-select-sm">
+          {% for m_num, m_name in [(1,'January'),(2,'February'),(3,'March'),(4,'April'),(5,'May'),(6,'June'),(7,'July'),(8,'August'),(9,'September'),(10,'October'),(11,'November'),(12,'December')] %}
+            <option value="{{ m_num }}" {% if selected_month == m_num %}selected{% endif %}>{{ m_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <select name="year" class="form-select form-select-sm">
+          {% for y in [current_year - 1, current_year, current_year + 1] %}
+            <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-navy btn-sm">
+          <i class="bi bi-arrow-clockwise me-1"></i> Switch Period
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==========================================
+     ACTIVE BUDGET ALERTS (80% & 100%)
+     ========================================== -->
+{% if budget_summary.active_alerts %}
+  <div class="mb-4">
+    {% for alert in budget_summary.active_alerts %}
+      <div class="budget-alert-card {{ alert.level }} shadow-sm">
+        {% if alert.level == 'danger' %}
+          <i class="bi bi-exclamation-octagon-fill text-danger fs-4"></i>
+        {% else %}
+          <i class="bi bi-exclamation-triangle-fill text-warning fs-4"></i>
+        {% endif %}
+        <div class="flex-grow-1">
+          <div class="d-flex justify-content-between align-items-center">
+            <strong>
+              {{ alert.category }} Limit Alert
+              <span class="badge {{ 'bg-danger' if alert.level == 'danger' else 'bg-warning text-dark' }} ms-1">
+                {{ alert.percent }}% Spent
+              </span>
+            </strong>
+            <small class="text-muted">Spent: ₹{{ alert.spent|inr }} / Limit: ₹{{ alert.limit|inr }}</small>
+          </div>
+          <div class="small mt-1">{{ alert.message }}</div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<!-- ==========================================
+     OVERALL MONTHLY BUDGET CARD
+     ========================================== -->
+<div class="card-finance mb-4">
+  <div class="card-body p-4">
+    <div class="row align-items-center g-4">
+      <div class="col-12 col-md-4 border-end-md">
+        <small class="text-muted text-uppercase fw-bold">Overall Monthly Budget</small>
+        <h2 class="fw-bold my-1 text-primary tabular-nums">₹{{ budget_summary.overall_budget|inr }}</h2>
+        <div class="d-flex gap-3 text-muted small mt-2">
+          <div>Spent: <strong class="text-danger tabular-nums">₹{{ budget_summary.overall_spent|inr }}</strong></div>
+          <div>Remaining: <strong class="text-success tabular-nums">₹{{ budget_summary.remaining_budget|inr }}</strong></div>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-8">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="fw-semibold small">Overall Budget Utilization</span>
+          <span class="badge {{ 'bg-danger' if budget_summary.overall_percent >= 100 else ('bg-warning text-dark' if budget_summary.overall_percent >= 80 else 'bg-success') }} px-2 py-1">
+            {{ budget_summary.overall_percent }}% Used
+          </span>
+        </div>
+        <div class="progress progress-budget" style="height: 12px;">
+          <div class="progress-bar {{ 'progress-bar-danger' if budget_summary.overall_percent >= 100 else ('progress-bar-warning' if budget_summary.overall_percent >= 80 else 'progress-bar-normal') }}" 
+               role="progressbar" 
+               style="width: {{ [budget_summary.overall_percent, 100]|min }}%" 
+               aria-valuenow="{{ budget_summary.overall_percent }}" 
+               aria-valuemin="0" 
+               aria-valuemax="100">
+          </div>
+        </div>
+        <div class="d-flex justify-content-between text-muted small mt-2">
+          <span>0%</span>
+          <span class="text-warning fw-semibold"><i class="bi bi-flag-fill me-1"></i>80% Warning Limit</span>
+          <span class="text-danger fw-semibold"><i class="bi bi-flag-fill me-1"></i>100% Cap</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- ==========================================
+       CATEGORY BUDGETS GRID
+       ========================================== -->
+  <div class="col-12 col-lg-8">
+    <div class="card-finance">
+      <div class="card-header">
+        <div>
+          <h5 class="m-0 fw-bold fs-6">Category Spending Limits</h5>
+          <small class="text-muted">Breakdown for {{ selected_month }}/{{ selected_year }}</small>
+        </div>
+        <span class="badge bg-light text-muted border">{{ budget_summary.category_budgets|length }} Categories Set</span>
+      </div>
+
+      <div class="card-body">
+        {% if budget_summary.category_budgets %}
+          <div class="row g-3">
+            {% for b in budget_summary.category_budgets %}
+              <div class="col-12 col-md-6">
+                <div class="p-3 rounded-3 border bg-light bg-opacity-50 h-100 d-flex flex-column justify-content-between">
+                  <div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <div class="d-flex align-items-center gap-2">
+                        <div class="category-icon" style="background-color: {{ category_colors.get(b.category, '#3b82f6') }};">
+                          <i class="bi {{ category_icons.get(b.category, 'bi-tag-fill') }}"></i>
+                        </div>
+                        <span class="fw-bold text-dark">{{ b.category }}</span>
+                      </div>
+                      
+                      <!-- Delete budget limit button -->
+                      <form action="{{ url_for('delete_budget', id=b.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Remove budget limit for {{ b.category }}?');">
+                        <button type="submit" class="btn btn-link text-muted hover-danger p-0 border-0" title="Remove Limit">
+                          <i class="bi bi-trash3"></i>
+                        </button>
+                      </form>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-baseline mb-1">
+                      <span class="fs-5 fw-bold text-dark tabular-nums">₹{{ b.spent|inr }}</span>
+                      <span class="small text-muted">Limit: <strong class="tabular-nums">₹{{ b.amount|inr }}</strong></span>
+                    </div>
+
+                    <div class="progress progress-budget mb-2">
+                      <div class="progress-bar {{ 'progress-bar-danger' if b.alert_level == 'danger' else ('progress-bar-warning' if b.alert_level == 'warning' else 'progress-bar-normal') }}" 
+                           role="progressbar" 
+                           style="width: {{ b.display_percent }}%" 
+                           aria-valuenow="{{ b.percent }}" 
+                           aria-valuemin="0" 
+                           aria-valuemax="100">
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="d-flex justify-content-between align-items-center pt-2 border-top small">
+                    <span class="text-muted">
+                      Remaining: <strong class="tabular-nums {{ 'text-danger' if b.remaining == 0 else 'text-success' }}">₹{{ b.remaining|inr }}</strong>
+                    </span>
+                    <span class="badge {{ 'bg-danger' if b.alert_level == 'danger' else ('bg-warning text-dark' if b.alert_level == 'warning' else 'bg-success') }}">
+                      {{ b.percent }}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state-box py-5">
+            <div class="empty-state-icon">
+              <i class="bi bi-pie-chart"></i>
+            </div>
+            <h5 class="empty-state-title">No category limits configured</h5>
+            <p class="empty-state-desc">Set spending limits for categories like Food, Travel, and Shopping to receive visual alerts when reaching 80% or 100%.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       SET / UPDATE BUDGET FORM
+       ========================================== -->
+  <div class="col-12 col-lg-4">
+    <div class="card-finance">
+      <div class="card-header">
+        <h5 class="m-0 fw-bold fs-6">
+          <i class="bi bi-pencil-square text-success me-1"></i> Set / Update Budget
+        </h5>
+      </div>
+      <div class="card-body">
+        <form action="{{ url_for('add_budget') }}" method="POST">
+          <input type="hidden" name="month" value="{{ selected_month }}">
+          <input type="hidden" name="year" value="{{ selected_year }}">
+
+          <div class="mb-3">
+            <label for="budgetCategory" class="form-label small fw-bold text-muted text-uppercase">Category *</label>
+            <select name="category" id="budgetCategory" class="form-select" required>
+              <option value="" disabled selected>Select category...</option>
+              <option value="Overall" class="fw-bold">★ Overall Monthly Budget</option>
+              <optgroup label="Expense Categories">
+                {% for cat in expense_categories %}
+                  <option value="{{ cat }}">{{ cat }}</option>
+                {% endfor %}
+              </optgroup>
+            </select>
+            <div class="form-text small">Select 'Overall' for monthly cap or choose a specific category.</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="budgetAmount" class="form-label small fw-bold text-muted text-uppercase">Budget Limit (₹) *</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light fw-bold text-dark">₹</span>
+              <input type="number" step="0.01" min="1" class="form-control" id="budgetAmount" name="amount" placeholder="e.g. 5000" required>
+            </div>
+          </div>
+
+          <div class="p-3 bg-light rounded-3 mb-3 small text-muted">
+            <div class="fw-bold text-dark mb-1"><i class="bi bi-bell-fill text-warning me-1"></i> Alert Rules:</div>
+            <ul class="mb-0 ps-3">
+              <li><strong>80% Warning:</strong> Soft alert when category reaches 80% threshold.</li>
+              <li><strong>100% Critical:</strong> Strong alert when spending exceeds the limit.</li>
+            </ul>
+          </div>
+
+          <button type="submit" class="btn btn-primary-smart w-100 py-2">
+            <i class="bi bi-check2-circle me-1"></i> Save Budget Limit
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

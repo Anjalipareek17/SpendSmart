@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+
+{% block title %}Reports & Analytics | SpendSmart{% endblock %}
+{% block page_title %}Financial Analytics & Reports{% endblock %}
+{% block page_subtitle %}Comprehensive breakdown of monthly cash flow, category distribution, and savings rate{% endblock %}
+
+{% block content %}
+
+<!-- Month & Year Filter Bar -->
+<div class="card-finance mb-4">
+  <div class="card-body py-3">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <form method="GET" action="{{ url_for('reports') }}" class="row g-2 align-items-center m-0">
+        <div class="col-auto">
+          <label class="small fw-bold text-muted text-uppercase mb-0 me-2">
+            <i class="bi bi-calendar-range me-1 text-primary"></i> Report Period:
+          </label>
+        </div>
+        <div class="col-auto">
+          <select name="month" class="form-select form-select-sm">
+            {% for m_num, m_name in [(1,'January'),(2,'February'),(3,'March'),(4,'April'),(5,'May'),(6,'June'),(7,'July'),(8,'August'),(9,'September'),(10,'October'),(11,'November'),(12,'December')] %}
+              <option value="{{ m_num }}" {% if selected_month == m_num %}selected{% endif %}>{{ m_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <select name="year" class="form-select form-select-sm">
+            {% for y in [current_year - 1, current_year, current_year + 1] %}
+              <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-navy btn-sm">
+            <i class="bi bi-filter me-1"></i> Update Report
+          </button>
+        </div>
+      </form>
+
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('export_csv') }}" class="btn btn-outline-custom btn-sm">
+          <i class="bi bi-file-earmark-arrow-down me-1"></i> Export Full CSV
+        </a>
+        <button class="btn btn-outline-custom btn-sm" onclick="window.print();">
+          <i class="bi bi-printer me-1"></i> Print / PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================
+     FINANCIAL PERFORMANCE METRICS
+     ========================================== -->
+<div class="row g-3 mb-4">
+  <!-- Monthly Income -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-info">
+        <small>Total Inflow</small>
+        <h3 class="tabular-nums text-success">₹{{ month_income|inr }}</h3>
+        <span class="badge bg-light text-muted border">Income Received</span>
+      </div>
+      <div class="metric-icon-box metric-icon-income">
+        <i class="bi bi-graph-up-arrow"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly Expenses -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-info">
+        <small>Total Outflow</small>
+        <h3 class="tabular-nums text-danger">₹{{ month_expense|inr }}</h3>
+        <span class="badge bg-light text-muted border">Expenses Spent</span>
+      </div>
+      <div class="metric-icon-box metric-icon-expense">
+        <i class="bi bi-graph-down-arrow"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Net Savings -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-info">
+        <small>Net Savings</small>
+        <h3 class="tabular-nums {{ 'text-success' if net_savings >= 0 else 'text-danger' }}">
+          {{ net_savings|currency }}
+        </h3>
+        <span class="badge {{ 'bg-success-subtle text-success border border-success-subtle' if net_savings >= 0 else 'bg-danger-subtle text-danger border border-danger-subtle' }}">
+          {{ 'Surplus' if net_savings >= 0 else 'Deficit' }}
+        </span>
+      </div>
+      <div class="metric-icon-box metric-icon-balance">
+        <i class="bi bi-piggy-bank-fill"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Savings Rate -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-info">
+        <small>Savings Rate</small>
+        <h3 class="tabular-nums text-primary">{{ savings_rate }}%</h3>
+        <span class="badge bg-light text-muted border">
+          Of Total Inflow
+        </span>
+      </div>
+      <div class="metric-icon-box metric-icon-budget">
+        <i class="bi bi-percent"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================
+     CHARTS ROW
+     ========================================== -->
+<div class="row g-4 mb-4">
+  <!-- 6-Month Comparison -->
+  <div class="col-12 col-lg-8">
+    <div class="card-finance h-100">
+      <div class="card-header">
+        <h5 class="m-0 fw-bold fs-6">Income vs Expenses Historical Trend</h5>
+        <small class="text-muted">6-month comparison</small>
+      </div>
+      <div class="card-body">
+        <div style="height: 290px; position: relative;">
+          <canvas id="incomeExpenseChart"></canvas>
+          <div id="barChartEmptyState" class="d-none empty-state-box py-4">
+            <div class="empty-state-icon mb-2">
+              <i class="bi bi-bar-chart-line"></i>
+            </div>
+            <h6 class="empty-state-title fs-6">No historical data available</h6>
+            <p class="empty-state-desc small mb-0">Record transactions across months to generate cash flow trends.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly Expense Distribution -->
+  <div class="col-12 col-lg-4">
+    <div class="card-finance h-100">
+      <div class="card-header">
+        <h5 class="m-0 fw-bold fs-6">Period Category Share</h5>
+        <small class="text-muted">{{ selected_month }}/{{ selected_year }}</small>
+      </div>
+      <div class="card-body d-flex flex-column justify-content-center">
+        <div style="height: 250px; position: relative;">
+          <canvas id="expenseChart" data-month="{{ selected_month }}" data-year="{{ selected_year }}"></canvas>
+          <div id="expenseChartEmptyState" class="d-none empty-state-box py-4">
+            <div class="empty-state-icon mb-2">
+              <i class="bi bi-pie-chart"></i>
+            </div>
+            <h6 class="empty-state-title fs-6">No expenses in this period</h6>
+            <p class="empty-state-desc small mb-0">No expenses recorded for {{ selected_month }}/{{ selected_year }}.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================
+     CATEGORY-WISE BREAKDOWN & MONTHLY LOGS
+     ========================================== -->
+<div class="row g-4 mb-4">
+  <!-- Category Spending Table -->
+  <div class="col-12 col-lg-5">
+    <div class="card-finance h-100">
+      <div class="card-header">
+        <h5 class="m-0 fw-bold fs-6">Category-wise Spending</h5>
+        <span class="badge bg-light text-muted border">{{ category_data|length }} categories</span>
+      </div>
+      <div class="card-body p-0">
+        {% if category_data %}
+          <div class="table-responsive">
+            <table class="table table-custom align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th class="text-end">Spent</th>
+                  <th style="width: 35%;">Share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in category_data %}
+                  <tr>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <div class="category-icon" style="background-color: {{ item.color }};">
+                          <i class="bi {{ item.icon }}"></i>
+                        </div>
+                        <span class="fw-semibold small">{{ item.category }}</span>
+                      </div>
+                    </td>
+                    <td class="text-end fw-bold text-dark tabular-nums">
+                      ₹{{ item.amount|inr }}
+                    </td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <div class="progress flex-grow-1" style="height: 6px;">
+                          <div class="progress-bar" style="width: {{ item.percent }}%; background-color: {{ item.color }};"></div>
+                        </div>
+                        <span class="small text-muted" style="min-width: 38px;">{{ item.percent }}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state-box py-5">
+            <div class="empty-state-icon">
+              <i class="bi bi-tag"></i>
+            </div>
+            <h6 class="empty-state-title">No category spending recorded</h6>
+            <p class="empty-state-desc">Expenses for {{ selected_month }}/{{ selected_year }} will be summarized here.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly Transactions Log -->
+  <div class="col-12 col-lg-7">
+    <div class="card-finance h-100">
+      <div class="card-header">
+        <h5 class="m-0 fw-bold fs-6">Transactions in this Period</h5>
+        <span class="badge bg-light text-muted border">{{ transactions|length }} items</span>
+      </div>
+      <div class="card-body p-0">
+        {% if transactions %}
+          <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-custom align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th class="text-end">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in transactions %}
+                  <tr>
+                    <td><small class="text-muted">{{ t.date.strftime('%b %d') }}</small></td>
+                    <td>
+                      <span class="fw-bold text-dark">{{ t.title }}</span>
+                    </td>
+                    <td>
+                      <span class="category-badge">
+                        <i class="bi {{ category_icons.get(t.category, 'bi-tag-fill') }}" style="color: {{ category_colors.get(t.category, '#64748b') }}"></i>
+                        {{ t.category }}
+                      </span>
+                    </td>
+                    <td class="text-end">
+                      <span class="tabular-nums {{ 'amount-income' if t.transaction_type == 'Income' else 'amount-expense' }}">
+                        {{ '+' if t.transaction_type == 'Income' else '-' }}₹{{ t.amount|inr }}
+                      </span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state-box py-5">
+            <div class="empty-state-icon">
+              <i class="bi bi-inbox"></i>
+            </div>
+            <h6 class="empty-state-title">No transactions for this month</h6>
+            <p class="empty-state-desc">Switch months using the period selector above or record new transactions.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

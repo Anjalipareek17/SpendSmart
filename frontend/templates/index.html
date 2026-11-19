@@ -1,0 +1,355 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard | SpendSmart – Personal Finance & Budget Tracker{% endblock %}
+{% block page_title %}Financial Dashboard{% endblock %}
+{% block page_subtitle %}Real-time cash flow overview, monthly spending limits, and automated alerts{% endblock %}
+
+{% block content %}
+
+<!-- ==========================================
+     BUDGET ALERTS BANNER (80% & 100% LIMITS)
+     ========================================== -->
+{% if budget_summary.active_alerts %}
+  <div class="mb-4">
+    {% for alert in budget_summary.active_alerts %}
+      <div class="budget-alert-card {{ alert.level }} shadow-sm">
+        {% if alert.level == 'danger' %}
+          <i class="bi bi-exclamation-octagon-fill text-danger fs-4"></i>
+        {% else %}
+          <i class="bi bi-exclamation-triangle-fill text-warning fs-4"></i>
+        {% endif %}
+        <div class="flex-grow-1">
+          <div class="d-flex justify-content-between align-items-center">
+            <strong class="d-flex align-items-center gap-2">
+              {{ alert.category }} Limit Alert
+              <span class="badge {{ 'bg-danger' if alert.level == 'danger' else 'bg-warning text-dark' }}">
+                {{ alert.percent }}% Used
+              </span>
+            </strong>
+            <small class="text-muted d-none d-sm-inline">Spent: ₹{{ alert.spent|inr }} / Limit: ₹{{ alert.limit|inr }}</small>
+          </div>
+          <div class="small mt-1">{{ alert.message }}</div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<!-- ==========================================
+     EMPTY STATE WELCOME HERO (WHEN 0 TRANSACTIONS)
+     ========================================== -->
+{% if total_transactions_count == 0 %}
+  <div class="welcome-hero-card">
+    <div class="row align-items-center g-4">
+      <div class="col-12 col-lg-7">
+        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 px-3 py-1 mb-2 fw-semibold">
+          <i class="bi bi-stars me-1"></i> Getting Started
+        </span>
+        <h2 class="fw-bold mb-2">Welcome to SpendSmart</h2>
+        <p class="text-light text-opacity-75 mb-3" style="max-width: 520px;">
+          Take complete control of your finances. Record your daily income, categorize your expenses, and set monthly budgets with automated 80% and 100% spending alerts.
+        </p>
+        <button class="btn btn-primary-smart" data-bs-toggle="modal" data-bs-target="#addTransactionModal">
+          <i class="bi bi-plus-circle-fill me-1"></i> Record Your First Transaction
+        </button>
+      </div>
+      <div class="col-12 col-lg-5">
+        <div class="row g-2">
+          <div class="col-12">
+            <div class="step-guide-card d-flex align-items-center gap-3">
+              <div class="step-num-badge m-0">1</div>
+              <div>
+                <strong class="d-block text-white small">Set Your Monthly Budgets</strong>
+                <span class="text-light text-opacity-75" style="font-size: 0.78rem;">Define limits for Food, Travel, or Bills to prevent overspending.</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="step-guide-card d-flex align-items-center gap-3">
+              <div class="step-num-badge m-0">2</div>
+              <div>
+                <strong class="d-block text-white small">Log Income & Earnings</strong>
+                <span class="text-light text-opacity-75" style="font-size: 0.78rem;">Record your salary, allowance, or freelance inflows.</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="step-guide-card d-flex align-items-center gap-3">
+              <div class="step-num-badge m-0">3</div>
+              <div>
+                <strong class="d-block text-white small">Track Daily Expenses</strong>
+                <span class="text-light text-opacity-75" style="font-size: 0.78rem;">Watch live charts and analytics calculate your net savings.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+<!-- ==========================================
+     SECTION A: FINANCIAL SUMMARY CARDS
+     ========================================== -->
+<div class="row g-3 mb-4">
+  <!-- Total Net Balance -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-info">
+        <small>Total Balance</small>
+        <h3 class="tabular-nums {{ 'text-success' if total_balance >= 0 else 'text-danger' }}">
+          {{ total_balance|currency }}
+        </h3>
+        <span class="badge bg-light text-muted border">
+          <i class="bi {{ 'bi-arrow-up-right text-success' if total_balance >= 0 else 'bi-arrow-down-right text-danger' }} me-1"></i>
+          Net Accumulated
+        </span>
+      </div>
+      <div class="metric-icon-box metric-icon-balance">
+        <i class="bi bi-wallet2"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Total Income (Current Month) -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-info">
+        <small>Monthly Income</small>
+        <h3 class="tabular-nums text-success">₹{{ current_month_income|inr }}</h3>
+        <span class="badge bg-light text-muted border">
+          <i class="bi bi-calendar-check me-1 text-primary"></i> Current Month
+        </span>
+      </div>
+      <div class="metric-icon-box metric-icon-income">
+        <i class="bi bi-arrow-down-left"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Total Expenses (Current Month) -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-info">
+        <small>Monthly Expenses</small>
+        <h3 class="tabular-nums text-danger">₹{{ current_month_expense|inr }}</h3>
+        <span class="badge bg-light text-muted border">
+          <i class="bi bi-cash-stack me-1 text-danger"></i> Current Month
+        </span>
+      </div>
+      <div class="metric-icon-box metric-icon-expense">
+        <i class="bi bi-arrow-up-right"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Remaining Monthly Budget -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-info">
+        <small>Remaining Budget</small>
+        <h3 class="tabular-nums">₹{{ remaining_budget|inr }}</h3>
+        <div class="d-flex align-items-center gap-2 mt-1">
+          <span class="badge {{ 'bg-success' if overall_percent < 80 else ('bg-warning text-dark' if overall_percent < 100 else 'bg-danger') }}">
+            {{ overall_percent }}% Used
+          </span>
+          <small class="text-muted">of ₹{{ overall_budget|inr }}</small>
+        </div>
+      </div>
+      <div class="metric-icon-box metric-icon-budget">
+        <i class="bi bi-pie-chart"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================
+     SECTION C & D: CHARTS
+     ========================================== -->
+<div class="row g-4 mb-4">
+  <!-- Income vs Expenses (Bar Chart) -->
+  <div class="col-12 col-lg-8">
+    <div class="card-finance h-100">
+      <div class="card-header">
+        <div>
+          <h5 class="m-0 fw-bold fs-6">Income vs Expenses Trend</h5>
+          <small class="text-muted">6-month comparison of your cash inflows and outflows</small>
+        </div>
+        <a href="{{ url_for('reports') }}" class="btn btn-outline-custom btn-sm">Full Report</a>
+      </div>
+      <div class="card-body">
+        <div style="height: 290px; position: relative;">
+          <canvas id="incomeExpenseChart"></canvas>
+          <div id="barChartEmptyState" class="d-none empty-state-box py-4">
+            <div class="empty-state-icon mb-2">
+              <i class="bi bi-bar-chart-line"></i>
+            </div>
+            <h6 class="empty-state-title fs-6">No cash flow trend yet</h6>
+            <p class="empty-state-desc small mb-2">Add income and expense transactions to view monthly comparison trends.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Expense Distribution (Doughnut Chart) -->
+  <div class="col-12 col-lg-4">
+    <div class="card-finance h-100">
+      <div class="card-header">
+        <div>
+          <h5 class="m-0 fw-bold fs-6">Expense Distribution</h5>
+          <small class="text-muted">Category-wise monthly spending</small>
+        </div>
+      </div>
+      <div class="card-body d-flex flex-column justify-content-center">
+        <div style="height: 240px; position: relative;">
+          <canvas id="expenseChart"></canvas>
+          <div id="expenseChartEmptyState" class="d-none empty-state-box py-4">
+            <div class="empty-state-icon mb-2">
+              <i class="bi bi-pie-chart"></i>
+            </div>
+            <h6 class="empty-state-title fs-6">No expenses this month</h6>
+            <p class="empty-state-desc small mb-0">Record an expense to see your category breakdown.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================
+     SECTION E: BUDGET OVERVIEW & RECENT TRANSACTIONS
+     ========================================== -->
+<div class="row g-4 mb-4">
+  <!-- Category-wise Budget Usage -->
+  <div class="col-12 col-lg-5">
+    <div class="card-finance h-100">
+      <div class="card-header">
+        <div>
+          <h5 class="m-0 fw-bold fs-6">Budget Overview</h5>
+          <small class="text-muted">Active category spending limits</small>
+        </div>
+        <a href="{{ url_for('budgets') }}" class="btn btn-outline-custom btn-sm">Manage</a>
+      </div>
+      <div class="card-body">
+        {% if budget_summary.category_budgets %}
+          <div class="d-flex flex-column gap-3">
+            {% for b in budget_summary.category_budgets %}
+              <div>
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi {{ category_icons.get(b.category, 'bi-tag-fill') }} text-primary"></i>
+                    <span class="fw-semibold small">{{ b.category }}</span>
+                  </div>
+                  <div class="small">
+                    <span class="fw-bold tabular-nums">₹{{ b.spent|inr }}</span>
+                    <span class="text-muted">/ ₹{{ b.amount|inr }}</span>
+                    <span class="badge {{ 'bg-danger' if b.alert_level == 'danger' else ('bg-warning text-dark' if b.alert_level == 'warning' else 'bg-light text-muted border') }} ms-1">
+                      {{ b.percent }}%
+                    </span>
+                  </div>
+                </div>
+                <div class="progress progress-budget">
+                  <div class="progress-bar {{ 'progress-bar-danger' if b.alert_level == 'danger' else ('progress-bar-warning' if b.alert_level == 'warning' else 'progress-bar-normal') }}" 
+                       role="progressbar" 
+                       style="width: {{ b.display_percent }}%" 
+                       aria-valuenow="{{ b.percent }}" 
+                       aria-valuemin="0" 
+                       aria-valuemax="100">
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state-box py-4">
+            <div class="empty-state-icon">
+              <i class="bi bi-sliders"></i>
+            </div>
+            <h6 class="empty-state-title">No monthly budgets set</h6>
+            <p class="empty-state-desc">Set spending limits for categories like Food and Travel to get automated 80% and 100% alerts.</p>
+            <a href="{{ url_for('budgets') }}" class="btn btn-outline-custom btn-sm">
+              <i class="bi bi-plus-circle me-1"></i> Configure Budgets
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Transactions Table -->
+  <div class="col-12 col-lg-7">
+    <div class="card-finance h-100">
+      <div class="card-header">
+        <div>
+          <h5 class="m-0 fw-bold fs-6">Recent Transactions</h5>
+          <small class="text-muted">Latest financial activities</small>
+        </div>
+        <a href="{{ url_for('transactions') }}" class="btn btn-outline-custom btn-sm">View All</a>
+      </div>
+      <div class="card-body p-0">
+        {% if recent_transactions %}
+          <div class="table-responsive">
+            <table class="table table-custom align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Date</th>
+                  <th class="text-end">Amount</th>
+                  <th class="text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in recent_transactions %}
+                  <tr>
+                    <td>
+                      <div class="fw-bold text-dark">{{ t.title }}</div>
+                      {% if t.description %}
+                        <small class="text-muted">{{ t.description|truncate(35) }}</small>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="category-badge">
+                        <i class="bi {{ category_icons.get(t.category, 'bi-tag-fill') }}" style="color: {{ category_colors.get(t.category, '#64748b') }}"></i>
+                        {{ t.category }}
+                      </span>
+                    </td>
+                    <td>
+                      <span class="small text-muted">{{ t.date.strftime('%d %b %Y') }}</span>
+                    </td>
+                    <td class="text-end">
+                      <span class="tabular-nums {{ 'amount-income' if t.transaction_type == 'Income' else 'amount-expense' }}">
+                        {{ '+' if t.transaction_type == 'Income' else '-' }}₹{{ t.amount|inr }}
+                      </span>
+                    </td>
+                    <td class="text-center">
+                      <form action="{{ url_for('delete_transaction', id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirmDelete('{{ t.title }}');">
+                        <button type="submit" class="btn btn-link text-danger p-0" title="Delete Transaction">
+                          <i class="bi bi-trash3"></i>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state-box py-5">
+            <div class="empty-state-icon">
+              <i class="bi bi-receipt"></i>
+            </div>
+            <h6 class="empty-state-title">No transactions recorded yet</h6>
+            <p class="empty-state-desc">Your recorded income and expenses will appear here immediately after you add them.</p>
+            <button class="btn btn-primary-smart btn-sm" data-bs-toggle="modal" data-bs-target="#addTransactionModal">
+              <i class="bi bi-plus-lg me-1"></i> Add Transaction
+            </button>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
